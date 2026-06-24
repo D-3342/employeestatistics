@@ -1,0 +1,28 @@
+{% extends 'employees/base.html' %}
+
+{% block title %}Табели за {{ year }} год{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <p class="eyebrow">Табели рабочего времени</p>
+    <h1 class="hero-title">Табели учёта рабочего времени за {{ year }} год</h1>
+    <p class="hero-lead">
+        Здесь доступны готовые файлы Excel за каждый месяц. Табели сохраняются в папке media и не пересоздаются при каждом открытии страницы.
+    </p>
+</section>
+
+<section class="status-section">
+    <h2 class="section-title">Доступные табели</h2>
+
+    <div class="timesheet-list">
+        {% for item in files %}
+            <div class="timesheet-row">
+                <div class="timesheet-text">
+                    Табель учёта рабочего времени за {{ item.name }}
+                </div>
+                <a href="{{ item.url }}" class="btn btn-primary timesheet-btn" download>Скачать</a>
+            </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

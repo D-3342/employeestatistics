@@ -1,0 +1,73 @@
+{% extends 'employees/base.html' %}
+
+{% block title %}Список сотрудников{% endblock %}
+
+{% block content %}
+    <div class="page-header">
+        <h1>Список сотрудников</h1>
+        <p class="muted">Отфильтруйте реестр по ФИО, подразделению или текущему статусу.</p>
+    </div>
+
+    <form method="get" class="filter-bar">
+        <div class="filter-field" style="min-width: 260px; flex: 1;">
+            <label for="id_search">Поиск по ФИО</label>
+            <input
+                type="text"
+                name="search"
+                id="id_search"
+                value="{{ request.GET.search }}"
+                placeholder="Фамилия Имя Отчество"
+            >
+        </div>
+
+        <div class="filter-field">
+            {{ form.department.label_tag }}
+            {{ form.department }}
+        </div>
+
+        <div class="filter-field">
+            {{ form.status.label_tag }}
+            {{ form.status }}
+        </div>
+
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">Применить</button>
+            <a href="{% url 'employees:employee_list' %}" class="btn btn-ghost">Сбросить</a>
+        </div>
+    </form>
+
+    <div class="table-card">
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ФИО</th>
+                        <th>Должность</th>
+                        <th>Подразделение</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for employee in employees %}
+                        <tr>
+                            <td><a class="row-link" href="{% url 'employees:employee_detail' employee.pk %}">{{ employee.full_name }}</a></td>
+                            <td>{{ employee.position.name|default:"—" }}</td>
+                            <td>{{ employee.department.name|default:"—" }}</td>
+                            <td>
+                                {% if employee.current_status %}
+                                    <span class="badge badge--{{ employee.current_status.color }}">{{ employee.current_status.name }}</span>
+                                {% else %}
+                                    <span class="muted">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="4" class="empty-state">Сотрудники не найдены. Измените фильтр или заполните базу.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Учёт сотрудников{% endblock %}</title>
+
+    <link rel="stylesheet" href="/static/employees/css/style.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=PT+Sans:400;600;700&family=PT+Serif:400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-inner">
+            <a class="brand" href="/">
+                <img class="brand-logo" src="/static/employees/img/logo.png" alt="Логотип техникума">
+                <span class="brand-name">Бизнес и право<small>Учёт сотрудников техникума</small></span>
+            </a>
+            <nav class="main-nav" aria-label="Основная навигация">
+                <a href="/" class="nav-link {% if request.resolver_match.url_name == 'home' %}is-active{% endif %}">Главная</a>
+                <a href="/employees/" class="nav-link {% if request.resolver_match.url_name == 'employee_list' or request.resolver_match.url_name == 'employee_detail' %}is-active{% endif %}">Сотрудники</a>
+                <a href="{% url 'employees:timesheet_index' %}" class="nav-link {% if request.resolver_match.url_name == 'timesheet_index' %}is-active{% endif %}">Табели</a>
+                <a href="/about/" class="nav-link {% if request.resolver_match.url_name == 'about' %}is-active{% endif %}">О техникуме</a>
+                <a href="/admin/" class="nav-link nav-link--admin">Админка</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="page">
+        <div class="container">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container footer-inner">
+            <span>© {% now "Y" %} Техникум · Информационная система учёта сотрудников</span>
+        </div>
+    </footer>
+</body>
+</html>

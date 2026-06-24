@@ -1,0 +1,44 @@
+{% extends 'employees/base.html' %}
+
+{% block title %}Главная — Учёт сотрудников{% endblock %}
+
+{% block content %}
+    <section class="hero">
+        <p class="eyebrow">Информационная система отдела кадров</p>
+        <h1 class="hero-title">Кто сегодня на месте — видно сразу</h1>
+        <p class="hero-lead">
+            EmployeeStat собирает сотрудников техникума в одном реестре: должность,
+            подразделение и актуальный статус — без звонков и бумажных журналов.
+        </p>
+
+        <div class="hero-actions" style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <a href="{% url 'employees:employee_list' %}" class="btn btn-primary">Открыть список сотрудников</a>
+            <a href="{% url 'employees:timesheet_index' %}" class="btn btn-ghost">Табели</a>
+        </div>
+    </section>
+
+    <section class="stat-grid" aria-label="Общая статистика">
+        <div class="stat-card">
+            <span class="stat-value">{{ total_employees }}</span>
+            <span class="stat-label">сотрудников в реестре</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">{{ departments_count }}</span>
+            <span class="stat-label">подразделений</span>
+        </div>
+    </section>
+
+    <section class="status-section">
+        <h2 class="section-title">Сотрудники по статусам</h2>
+        <div class="status-grid">
+            {% for item in status_counts %}
+                <div class="status-card status-card--{{ item.status.color }}">
+                    <span class="status-card-name">{{ item.status.name }}</span>
+                    <span class="status-card-count">{{ item.count }}</span>
+                </div>
+            {% empty %}
+                <p class="muted">Статусы ещё не добавлены. Заполните базу через админку или команду seed_db.</p>
+            {% endfor %}
+        </div>
+    </section>
+{% endblock %}
