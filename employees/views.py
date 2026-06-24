@@ -6,11 +6,12 @@ from datetime import date
 from pathlib import Path
 
 from django.conf import settings
-from django.http import JsonResponse, HttpResponseBadRequest
+from django.http import JsonResponse, HttpResponseBadRequest, FileResponse
 from django.shortcuts import render, get_object_or_404
 from django.db.models import Sum
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
+from django.urls import reverse
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -194,14 +195,17 @@ def employee_calendar_day_api(request, pk):
     })
 
 
-def _build_timesheet_file(year, month):
+def _build_timesheet_file(year, month, force=False):
     media_dir = Path(settings.MEDIA_ROOT)
     media_dir.mkdir(parents=True, exist_ok=True)
 
     filename = f'tabel_t13_{year}_{month:02d}.xlsx'
     file_path = media_dir / filename
-    if file_path.exists():
+    if file_path.exists() and not force:
         return file_path, filename
+
+    if file_path.exists() and force:
+        file_path.unlink()
 
     days_in_month = monthrange(year, month)[1]
     employees = Employee.objects.select_related('position', 'department').order_by('full_name')
@@ -224,6 +228,7 @@ def _build_timesheet_file(year, month):
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
     center = Alignment(horizontal='center', vertical='center', wrap_text=True)
     header_fill = PatternFill('solid', fgColor='D9EAF7')
+    section_fill = PatternFill('solid', fgColor='EDEDED')
     end_col = 6 + days_in_month
 
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=end_col)
@@ -256,6 +261,10 @@ def _build_timesheet_file(year, month):
     cell.alignment = center
     cell.border = border
 
+    all_departments = list(Department.objects.order_by('name'))
+    department_totals = {dept.name: 0 for dept in all_departments}
+    department_totals['Без подразделения'] = 0
+
     row = 5
     for idx, emp in enumerate(employees, 1):
         ws.cell(row=row, column=1, value=idx)
@@ -264,21 +273,42 @@ def _build_timesheet_file(year, month):
         ws.cell(row=row, column=4, value=emp.department.name if emp.department else '')
         ws.cell(row=row, column=5, value=idx)
 
-        total_hours = 0
+        employee_total = 0
+
         for day in range(1, days_in_month + 1):
+            current_date = date(year, month, day)
+            sunday = current_date.weekday() == 6
+
             item = data.get(emp.id, {}).get(day)
             value = ''
-            if item:
-                if item.hours is not None:
-                    value = item.hours
-                    total_hours += item.hours
-                elif item.status:
-                    value = item.status.code
+
+            if sunday:
+                value = 'В 0'
+            elif item:
+                status_code = item.status.code if item.status else ''
+                hours_value = item.hours
+
+                if status_code and hours_value is not None:
+                    value = f'{status_code} {hours_value}'
+                elif status_code:
+                    if item.status and 'выход' in item.status.name.lower():
+                        value = 'В 0'
+                    else:
+                        value = status_code
+                elif hours_value is not None:
+                    value = str(hours_value)
+
+                if hours_value is not None:
+                    employee_total += int(hours_value)
+
             cell = ws.cell(row=row, column=5 + day, value=value)
             cell.alignment = center
             cell.border = border
 
-        ws.cell(row=row, column=end_col, value=total_hours)
+        ws.cell(row=row, column=end_col, value=employee_total)
+
+        dept_name = emp.department.name if emp.department else 'Без подразделения'
+        department_totals[dept_name] = department_totals.get(dept_name, 0) + employee_total
 
         for col in range(1, end_col + 1):
             ws.cell(row=row, column=col).border = border
@@ -286,14 +316,50 @@ def _build_timesheet_file(year, month):
 
         row += 1
 
+    row += 1
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=2)
+    cell = ws.cell(row=row, column=1, value='Итоги по подразделениям')
+    cell.font = Font(bold=True)
+    cell.fill = section_fill
+    cell.alignment = center
+    cell.border = border
+
+    row += 1
+    ws.cell(row=row, column=1, value='Подразделение')
+    ws.cell(row=row, column=2, value='Итого часов')
+    for col in range(1, 3):
+        c = ws.cell(row=row, column=col)
+        c.font = Font(bold=True)
+        c.fill = header_fill
+        c.alignment = center
+        c.border = border
+
+    row += 1
+    for dept in all_departments:
+        total = department_totals.get(dept.name, 0)
+        ws.cell(row=row, column=1, value=dept.name)
+        ws.cell(row=row, column=2, value=total)
+        ws.cell(row=row, column=1).border = border
+        ws.cell(row=row, column=2).border = border
+        ws.cell(row=row, column=1).alignment = center
+        ws.cell(row=row, column=2).alignment = center
+        row += 1
+
+    ws.cell(row=row, column=1, value='Без подразделения')
+    ws.cell(row=row, column=2, value=department_totals.get('Без подразделения', 0))
+    ws.cell(row=row, column=1).border = border
+    ws.cell(row=row, column=2).border = border
+    ws.cell(row=row, column=1).alignment = center
+    ws.cell(row=row, column=2).alignment = center
+
     ws.column_dimensions['A'].width = 6
     ws.column_dimensions['B'].width = 32
     ws.column_dimensions['C'].width = 24
-    ws.column_dimensions['D'].width = 28
+    ws.column_dimensions['D'].width = 35
     ws.column_dimensions['E'].width = 12
-
     for col in range(6, end_col + 1):
         ws.column_dimensions[ws.cell(row=4, column=col).column_letter].width = 10
+    ws.column_dimensions['F'].width = 12
 
     wb.save(file_path)
     return file_path, filename
@@ -303,18 +369,45 @@ def timesheet_index(request):
     year = timezone.localdate().year
     files = []
     for month in range(1, 13):
-        _, filename = _build_timesheet_file(year, month)
+        file_path, filename = _build_timesheet_file(year, month)
+        updated_at = timezone.localtime(
+            timezone.datetime.fromtimestamp(file_path.stat().st_mtime, tz=timezone.get_current_timezone())
+        )
         files.append({
             'month': month,
             'name': MONTH_NAMES_RU[month],
             'filename': filename,
-            'url': settings.MEDIA_URL + filename,
+            'url': reverse('employees:timesheet_download', args=[filename]),
+            'updated_at': updated_at.strftime('%d.%m.%Y'),
         })
 
     return render(request, 'employees/timesheets.html', {
         'year': year,
         'files': files,
     })
+
+
+@require_http_methods(['POST'])
+def timesheet_refresh(request, year, month):
+    file_path, filename = _build_timesheet_file(year, month, force=True)
+    updated_at = timezone.localtime(
+        timezone.datetime.fromtimestamp(file_path.stat().st_mtime, tz=timezone.get_current_timezone())
+    )
+    return JsonResponse({
+        'ok': True,
+        'filename': filename,
+        'url': reverse('employees:timesheet_download', args=[filename]),
+        'updated_at': updated_at.strftime('%d.%m.%Y'),
+    })
+
+
+@require_http_methods(['GET'])
+def timesheet_download(request, filename):
+    file_path = Path(settings.MEDIA_ROOT) / filename
+    if not file_path.exists():
+        return HttpResponseBadRequest('Файл не найден')
+
+    return FileResponse(open(file_path, 'rb'), as_attachment=True, filename=filename)
 
 
 def about(request):

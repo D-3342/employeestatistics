@@ -18,11 +18,74 @@
         {% for item in files %}
             <div class="timesheet-row">
                 <div class="timesheet-text">
-                    Табель учёта рабочего времени за {{ item.name }}
+                    Табель учёта рабочего времени за {{ item.name }} ({{ item.updated_at }})
                 </div>
-                <a href="{{ item.url }}" class="btn btn-primary timesheet-btn" download>Скачать</a>
+                <div class="timesheet-actions">
+                    <button
+                        type="button"
+                        class="btn btn-ghost timesheet-refresh"
+                        data-year="{{ year }}"
+                        data-month="{{ item.month }}"
+                    >
+                        Обновить
+                    </button>
+                    <a href="{{ item.url }}" class="btn btn-primary timesheet-btn" download>Скачать</a>
+                </div>
             </div>
         {% endfor %}
     </div>
 </section>
+
+<script>
+(function () {
+    const buttons = document.querySelectorAll('.timesheet-refresh');
+
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return '';
+    }
+
+    buttons.forEach((button) => {
+        button.addEventListener('click', async () => {
+            const year = button.dataset.year;
+            const month = button.dataset.month;
+            const row = button.closest('.timesheet-row');
+            const downloadLink = row.querySelector('.timesheet-btn');
+            const textEl = row.querySelector('.timesheet-text');
+            const originalText = button.textContent;
+
+            button.disabled = true;
+            button.textContent = 'Обновление...';
+
+            try {
+                const response = await fetch(`/timesheets/${year}/${month}/refresh/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'Accept': 'application/json',
+                    },
+                    credentials: 'same-origin',
+                });
+
+                if (!response.ok) {
+                    alert('Не удалось обновить файл');
+                    return;
+                }
+
+                const data = await response.json();
+                downloadLink.href = data.url;
+                textEl.textContent = textEl.textContent.replace(/\(.+\)$/, `(${data.updated_at})`);
+            } catch (error) {
+                console.error(error);
+                alert('Ошибка сети');
+            } finally {
+                button.disabled = false;
+                button.textContent = originalText;
+            }
+        });
+    });
+})();
+</script>
 {% endblock %}
